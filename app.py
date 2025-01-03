@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+#Updated The CPUScheduler Class For SRTF Algorithm
 
 class CPUScheduler:
     def __init__(self):
@@ -101,13 +102,12 @@ class CPUScheduler:
 
         completed = [False] * n
         time = min(AT)
-        first_process = True  # Flag to indicate the first process
+        first_process = True
 
         while True:
             if all(completed):
                 break
 
-            # Calculate response ratio for available processes
             available = []
             for i in range(n):
                 if not completed[i] and AT[i] <= time:
@@ -119,12 +119,10 @@ class CPUScheduler:
                 time = min(AT[i] for i in range(n) if not completed[i])
                 continue
 
-            # Choose process with highest response ratio
             current = max(available, key=lambda x: x[1])[0]
 
-            gantt.append((AT[current], AT[current], current, "arrival"))  # Add process arrival
+            gantt.append((AT[current], AT[current], current, "arrival"))
 
-            # Add context switch only if not the first process
             if not first_process and self.context_switch_time > 0:
                 gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
                 time += self.context_switch_time
@@ -136,7 +134,7 @@ class CPUScheduler:
             time += CBT[current]
             completed[current] = True
 
-            first_process = False  # First process is now executed
+            first_process = False
 
         return gantt, WT, TT, RT
 
@@ -146,13 +144,13 @@ class CPUScheduler:
         AT = [p[1] for p in self.processes]
         WT = [0] * n
         TT = [0] * n
-        RT = [-1] * n  # Initialize RT to -1
+        RT = [-1] * n
         gantt = []
 
         remaining = CBT.copy()
         time = min(AT)
         ready_queue = []
-        first_process = True  # Flag to indicate the first process
+        first_process = True
 
         while True:
             # Add newly arrived processes to ready queue
@@ -168,34 +166,29 @@ class CPUScheduler:
 
             current = ready_queue.pop(0)
 
-            # Add process arrival as a circle
             if remaining[current] == CBT[current]:
                 gantt.append((AT[current], AT[current], current, "arrival"))
 
-            # Add context switch only if not the first process
             if not first_process and self.context_switch_time > 0:
                 gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
                 time += self.context_switch_time
 
-            # Record first response time
             if RT[current] == -1:
                 RT[current] = time - AT[current]
 
-            # Execute for quantum or remaining time
             execute_time = min(self.time_quantum, remaining[current])
             gantt.append((time, time + execute_time, current, "execution"))
 
             remaining[current] -= execute_time
             time += execute_time
 
-            # If process not finished, add back to queue
             if remaining[current] > 0:
                 ready_queue.append(current)
             else:
                 TT[current] = time - AT[current]
                 WT[current] = TT[current] - CBT[current]
 
-            first_process = False  # First process is now executed
+            first_process = False
 
         return gantt, WT, TT, RT
 
@@ -211,53 +204,73 @@ class CPUScheduler:
 
         time = min(AT)
         completed = 0
-        current_process = None
-        last_process = None
-        first_process = True  # Flag to indicate the first process
+        first_process = True
+        
+        # Variables to track continuous execution
+        execution_start = None
+        current_execution = None
 
         while completed < n:
             # Find process with minimum remaining time
             min_remaining = float('inf')
-            current_process = None
+            next_process = None
 
             for i in range(n):
                 if AT[i] <= time and remaining[i] > 0:
                     if remaining[i] < min_remaining:
                         min_remaining = remaining[i]
-                        current_process = i
+                        next_process = i
 
-            if current_process is None:
+            if next_process is None:
                 time = min(AT[i] for i in range(n) if remaining[i] > 0)
                 continue
 
-            # Add process arrival as a circle
-            if remaining[current_process] == CBT[current_process]:
-                gantt.append((AT[current_process], AT[current_process], current_process, "arrival"))
+            # Process arrival event
+            if remaining[next_process] == CBT[next_process]:
+                gantt.append((AT[next_process], AT[next_process], next_process, "arrival"))
 
-            # Add context switch only if switching processes and not the first process
-            if last_process is not None and last_process != current_process and not first_process and self.context_switch_time > 0:
-                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
-                time += self.context_switch_time
+            # Handle process switching and continuous execution
+            if next_process != current_execution:
+                # If there was a previous execution, add it to gantt
+                if current_execution is not None and execution_start is not None:
+                    # Add context switch if needed
+                    if not first_process and self.context_switch_time > 0:
+                        gantt.append((execution_start - self.context_switch_time, 
+                                    execution_start, 
+                                    -1, 
+                                    "context_switch"))
 
-            # Record first response time
-            if RT[current_process] == -1:
-                RT[current_process] = time - AT[current_process]
+                    gantt.append((execution_start, time, current_execution, "execution"))
 
-            gantt.append((time, time + 1, current_process, "execution"))
-            remaining[current_process] -= 1
+                # Start new execution
+                execution_start = time
+                current_execution = next_process
 
-            if remaining[current_process] == 0:
+                # Record first response time
+                if RT[next_process] == -1:
+                    RT[next_process] = time - AT[next_process]
+
+            remaining[next_process] -= 1
+
+            if remaining[next_process] == 0:
+                # Process completed
                 completed += 1
-                TT[current_process] = time + 1 - AT[current_process]
-                WT[current_process] = TT[current_process] - CBT[current_process]
+                TT[next_process] = time + 1 - AT[next_process]
+                WT[next_process] = TT[next_process] - CBT[next_process]
 
-            last_process = current_process
+                # Add final execution block
+                gantt.append((execution_start, time + 1, next_process, "execution"))
+                execution_start = None
+                current_execution = None
+
+            first_process = False
             time += 1
-            first_process = False  # First process is now executed
+
+        # Add any remaining execution block
+        if current_execution is not None and execution_start is not None:
+            gantt.append((execution_start, time, current_execution, "execution"))
 
         return gantt, WT, TT, RT
-
-
 
 class SchedulerApp:
     def __init__(self, root):
@@ -267,15 +280,15 @@ class SchedulerApp:
         self.create_widgets()
 
     def create_widgets(self):
-        # Configure the root grid
+        # Input section configuration remains the same
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=2)
         self.root.grid_rowconfigure(0, weight=1)
 
-        # Input section
+        # Input frame
         input_frame = tk.Frame(self.root)
         input_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-        input_frame.grid_rowconfigure(6, weight=1)  # Allow the "Run" button space to expand
+        input_frame.grid_rowconfigure(6, weight=1)
 
         tk.Label(input_frame, text="Processes (CBT, AT) as List:").grid(row=0, column=0, sticky="w")
         self.process_input = tk.Text(input_frame, width=30, height=5)
@@ -312,6 +325,52 @@ class SchedulerApp:
         scrollable_frame.grid_rowconfigure(0, weight=1)
         scrollable_frame.grid_columnconfigure(0, weight=1)
 
+    def create_metrics_table(self, parent, title, data):
+        """Create a styled table for process metrics"""
+        table_frame = ttk.LabelFrame(parent, text=title, padding="10")
+        table_frame.grid(sticky="nsew", padx=5, pady=5)
+
+        # Header
+        headers = ['Process', 'Wait Time', 'Turnaround Time', 'Response Time']
+        for col, header in enumerate(headers):
+            ttk.Label(table_frame, text=header, font=('Arial', 9, 'bold')).grid(
+                row=0, column=col, padx=5, pady=2, sticky="w")
+
+        # Data rows
+        for i, (wt, tt, rt) in enumerate(data, 1):
+            ttk.Label(table_frame, text=f"P{i}").grid(
+                row=i, column=0, padx=5, pady=2, sticky="w")
+            ttk.Label(table_frame, text=f"{wt}").grid(
+                row=i, column=1, padx=5, pady=2, sticky="w")
+            ttk.Label(table_frame, text=f"{tt}").grid(
+                row=i, column=2, padx=5, pady=2, sticky="w")
+            ttk.Label(table_frame, text=f"{rt}").grid(
+                row=i, column=3, padx=5, pady=2, sticky="w")
+
+        return table_frame
+
+    def create_summary_table(self, averages):
+        """Create a styled summary table"""
+        summary_frame = ttk.LabelFrame(self.output_frame, text="Average Metrics", padding="10")
+        summary_frame.grid(sticky="nsew", padx=5, pady=10)
+
+        # Headers
+        headers = ['Algorithm', 'Avg Wait Time', 'Avg Turnaround Time', 'Avg Response Time']
+        for col, header in enumerate(headers):
+            ttk.Label(summary_frame, text=header, font=('Arial', 9, 'bold')).grid(
+                row=0, column=col, padx=10, pady=5, sticky="w")
+
+        # Data rows
+        for i, (algo, avg_wt, avg_tt, avg_rt) in enumerate(averages, 1):
+            ttk.Label(summary_frame, text=algo).grid(
+                row=i, column=0, padx=10, pady=2, sticky="w")
+            ttk.Label(summary_frame, text=f"{avg_wt:.2f}").grid(
+                row=i, column=1, padx=10, pady=2, sticky="w")
+            ttk.Label(summary_frame, text=f"{avg_tt:.2f}").grid(
+                row=i, column=2, padx=10, pady=2, sticky="w")
+            ttk.Label(summary_frame, text=f"{avg_rt:.2f}").grid(
+                row=i, column=3, padx=10, pady=2, sticky="w")
+
     def run_simulation(self):
         try:
             self.scheduler.processes = eval(self.process_input.get("1.0", "end").strip())
@@ -338,6 +397,11 @@ class SchedulerApp:
             avg_rt = sum(RT) / len(RT)
             averages.append((algo, avg_wt, avg_tt, avg_rt))
 
+            # Create algorithm section frame
+            algo_frame = ttk.LabelFrame(self.output_frame, text=algo, padding="5")
+            algo_frame.grid(row=i, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+            # Create Gantt chart
             fig, ax = plt.subplots(figsize=(8, 2))
 
             for (start, end, process, event) in gantt:
@@ -345,43 +409,31 @@ class SchedulerApp:
                     ax.plot(start, process, "o", color="green", label="Arrival" if i == 0 else "")
                 elif event == "execution":
                     ax.plot([start, end], [process, process], color="blue", lw=2, label="Execution" if i == 0 else "")
+                    # Add time labels at start and end of execution
+                    ax.text(start, process + 0.1, f'{start}', ha='center', va='bottom')
+                    ax.text(end, process + 0.1, f'{end}', ha='center', va='bottom')
                 elif event == "context_switch":
                     ax.plot([start, end], [process, process], color="red", linestyle="dotted", label="Context Switch" if i == 0 else "")
+                    # Add time labels for context switch
+                    ax.text(start, process + 0.1, f'{start}', ha='center', va='bottom')
+                    ax.text(end, process + 0.1, f'{end}', ha='center', va='bottom')
 
             ax.set_yticks(range(len(self.scheduler.processes)))
             ax.set_yticklabels([f"P{i+1}" for i in range(len(self.scheduler.processes))])
-            ax.set_xlabel("Time", fontsize=10) 
-            ax.set_title(algo, fontsize=12)
+            ax.set_xlabel("Time", fontsize=10)
             ax.grid(True, linestyle="--", alpha=0.5)
             plt.tight_layout()
-            # ax.legend()
 
-            canvas = FigureCanvasTkAgg(fig, self.output_frame)
-            canvas.get_tk_widget().grid(row=i, column=0, padx=10, pady=10, sticky="nsew")
+            # Add Gantt chart to algorithm frame
+            canvas = FigureCanvasTkAgg(fig, algo_frame)
+            canvas.get_tk_widget().grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
-            table_frame = tk.Frame(self.output_frame)
-            table_frame.grid(row=i, column=1, padx=10, pady=10, sticky="nsew")
-            ttk.Label(table_frame, text=f"{algo} WT, TT, RT").grid(row=0, column=0)
-            for j, (wt, tt, rt) in enumerate(zip(WT, TT, RT)):
-                ttk.Label(table_frame, text=f"P{j+1}: WT={wt}, TT={tt}, RT={rt}").grid(row=j + 1, column=0)
-    
+            # Create metrics table
+            metrics_data = list(zip(WT, TT, RT))
+            self.create_metrics_table(algo_frame, f"{algo} Metrics", metrics_data)
 
-
-        # Add summary table
-        summary_frame = tk.Frame(self.output_frame)
-        summary_frame.grid(row=len(algorithms), column=0, columnspan=2, pady=10)
-
-        tk.Label(summary_frame, text="Average WT, TT, RT", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=4)
-        tk.Label(summary_frame, text="Algorithm").grid(row=1, column=0, padx=5)
-        tk.Label(summary_frame, text="Avg WT").grid(row=1, column=1, padx=5)
-        tk.Label(summary_frame, text="Avg TT").grid(row=1, column=2, padx=5)
-        tk.Label(summary_frame, text="Avg RT").grid(row=1, column=3, padx=5)
-
-        for i, (algo, avg_wt, avg_tt, avg_rt) in enumerate(averages):
-            tk.Label(summary_frame, text=algo).grid(row=i+2, column=0)
-            tk.Label(summary_frame, text=f"{avg_wt:.2f}").grid(row=i+2, column=1)
-            tk.Label(summary_frame, text=f"{avg_tt:.2f}").grid(row=i+2, column=2)
-            tk.Label(summary_frame, text=f"{avg_rt:.2f}").grid(row=i+2, column=3)
+        # Create summary table
+        self.create_summary_table(averages)
 
 
 if __name__ == "__main__":
