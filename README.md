@@ -38,13 +38,13 @@
    Make sure you have **Python 3.x** installed, then install the required packages using `pip`:
 
    ```bash
-   pip install -r requirements.txt
+   pip install numpy tkinter matplotlib
    ```
 
    This will install all the necessary libraries, including:
    - `tkinter` (for the GUI)
    - `matplotlib` (for Gantt chart visualizations)
-   - `numpy` (optional, if needed for processing)
+   - `numpy` (needed for processing)
 
 ---
 
@@ -55,7 +55,7 @@
    To start the CPU scheduling simulator, run the following command:
 
    ```bash
-   python app.py
+   python CPUTaskSched.py
    ```
 
    This will open a graphical user interface (GUI) where you can input process data and customize settings like context switch time and time quantum.
