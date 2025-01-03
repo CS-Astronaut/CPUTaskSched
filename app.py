@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-#Updated The CPUScheduler Class For SRTF Algorithm
+#Fixed The CPUScheduler Class For SRTF Algorithm in Context Switch Time Calculation
 
 class CPUScheduler:
     def __init__(self):
@@ -201,76 +201,73 @@ class CPUScheduler:
         TT = [0] * n
         RT = [-1] * n
         gantt = []
-
+    
         time = min(AT)
         completed = 0
-        first_process = True
-        
-        # Variables to track continuous execution
+        last_process = None
+        current_process = None
         execution_start = None
-        current_execution = None
-
+        first_process = True
+    
         while completed < n:
             # Find process with minimum remaining time
             min_remaining = float('inf')
             next_process = None
-
+    
             for i in range(n):
                 if AT[i] <= time and remaining[i] > 0:
                     if remaining[i] < min_remaining:
                         min_remaining = remaining[i]
                         next_process = i
-
+    
             if next_process is None:
                 time = min(AT[i] for i in range(n) if remaining[i] > 0)
                 continue
-
-            # Process arrival event
+            
+            # Add arrival marker when process first arrives
             if remaining[next_process] == CBT[next_process]:
                 gantt.append((AT[next_process], AT[next_process], next_process, "arrival"))
-
-            # Handle process switching and continuous execution
-            if next_process != current_execution:
+    
+            # Process switch detection
+            if next_process != current_process:
                 # If there was a previous execution, add it to gantt
-                if current_execution is not None and execution_start is not None:
-                    # Add context switch if needed
-                    if not first_process and self.context_switch_time > 0:
-                        gantt.append((execution_start - self.context_switch_time, 
-                                    execution_start, 
-                                    -1, 
-                                    "context_switch"))
-
-                    gantt.append((execution_start, time, current_execution, "execution"))
-
-                # Start new execution
+                if current_process is not None and execution_start is not None:
+                    gantt.append((execution_start, time, current_process, "execution"))
+    
+                # Add context switch if needed
+                if not first_process and self.context_switch_time > 0:
+                    gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
+                    time += self.context_switch_time
+    
+                # Start new execution period
+                current_process = next_process
                 execution_start = time
-                current_execution = next_process
-
-                # Record first response time
-                if RT[next_process] == -1:
-                    RT[next_process] = time - AT[next_process]
-
-            remaining[next_process] -= 1
-
-            if remaining[next_process] == 0:
-                # Process completed
+    
+                # Record first response time for the new process
+                if RT[current_process] == -1:
+                    RT[current_process] = time - AT[current_process]
+    
+            # Process the current time unit
+            remaining[current_process] -= 1
+    
+            if remaining[current_process] == 0:
+                # Process completed - add final execution block
+                gantt.append((execution_start, time + 1, current_process, "execution"))
                 completed += 1
-                TT[next_process] = time + 1 - AT[next_process]
-                WT[next_process] = TT[next_process] - CBT[next_process]
-
-                # Add final execution block
-                gantt.append((execution_start, time + 1, next_process, "execution"))
+                TT[current_process] = time + 1 - AT[current_process]
+                WT[current_process] = TT[current_process] - CBT[current_process]
+                current_process = None
                 execution_start = None
-                current_execution = None
-
+    
             first_process = False
             time += 1
-
-        # Add any remaining execution block
-        if current_execution is not None and execution_start is not None:
-            gantt.append((execution_start, time, current_execution, "execution"))
-
+    
+        # Add any final execution period that hasn't been added yet
+        if current_process is not None and execution_start is not None:
+            gantt.append((execution_start, time, current_process, "execution"))
+    
         return gantt, WT, TT, RT
+
 
 class SchedulerApp:
     def __init__(self, root):
