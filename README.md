@@ -55,7 +55,7 @@
    To start the CPU scheduling simulator, run the following command:
 
    ```bash
-   python CPUTaskSched.py
+   python app.py
    ```
 
    This will open a graphical user interface (GUI) where you can input process data and customize settings like context switch time and time quantum.
