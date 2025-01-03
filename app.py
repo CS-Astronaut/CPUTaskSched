@@ -1,3 +1,4 @@
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
@@ -11,21 +12,7 @@ class CPUScheduler:
         self.time_quantum = 5
 
     def fcfs(self):
-        return self.simulate("FCFS")
-
-    def spn(self):
-        return self.simulate("SPN")
-
-    def hrrn(self):
-        return self.simulate("HRRN")
-
-    def rr(self):
-        return self.simulate("RR")
-
-    def srtf(self):
-        return self.simulate("SRTF")
-
-    def simulate(self, algorithm):
+        # Return directly instead of calling simulate
         n = len(self.processes)
         CBT = [p[0] for p in self.processes]
         AT = [p[1] for p in self.processes]
@@ -34,92 +21,214 @@ class CPUScheduler:
         RT = [0] * n
         gantt = []
 
-        if algorithm == "FCFS":
-            time = 0
-            for i, (cbt, at) in enumerate(sorted(self.processes, key=lambda x: x[1])):
-                start = max(time, at)
-                gantt.append((start, start + cbt, i))
-                WT[i] = start - at
-                TT[i] = WT[i] + cbt
-                RT[i] = WT[i]
-                time = start + cbt + self.context_switch_time
+        # Sort processes by arrival time
+        sorted_processes = sorted(enumerate(self.processes), key=lambda x: x[1][1])
+        time = sorted_processes[0][1][1]  # Start with first arrival
 
-        elif algorithm == "SPN":
-            time = 0
-            completed = [False] * n
-            for _ in range(n):
-                candidates = [(i, CBT[i]) for i in range(n) if not completed[i] and AT[i] <= time]
-                if not candidates:
-                    time += 1
-                    continue
-                i, _ = min(candidates, key=lambda x: x[1])
-                start = time
-                gantt.append((start, start + CBT[i], i))
-                WT[i] = start - AT[i]
-                TT[i] = WT[i] + CBT[i]
-                RT[i] = WT[i]
-                time += CBT[i] + self.context_switch_time
-                completed[i] = True
+        for i, (cbt, at) in sorted_processes:
+            if time < at:
+                time = at
+            
+            # Add context switch if not first process
+            if gantt and self.context_switch_time > 0:
+                gantt.append((time, time + self.context_switch_time, -1))
+                time += self.context_switch_time
+            
+            gantt.append((time, time + cbt, i))
+            WT[i] = time - at
+            RT[i] = WT[i]
+            TT[i] = WT[i] + cbt
+            time += cbt
 
-        elif algorithm == "HRRN":
-            time = 0
-            completed = [False] * n
-            for _ in range(n):
-                candidates = [(i, (WT[i] + CBT[i]) / CBT[i]) for i in range(n) if not completed[i] and AT[i] <= time]
-                if not candidates:
-                    time += 1
-                    continue
-                i, _ = max(candidates, key=lambda x: x[1])
-                start = time
-                gantt.append((start, start + CBT[i], i))
-                WT[i] = start - AT[i]
-                TT[i] = WT[i] + CBT[i]
-                RT[i] = WT[i]
-                time += CBT[i] + self.context_switch_time
-                completed[i] = True
+        return gantt, WT, TT, RT
 
-        elif algorithm == "RR":
-            time = 0
-            queue = [i for i in range(n)]
-            remaining = CBT[:]
-            while queue:
-                i = queue.pop(0)
-                if AT[i] > time:
-                    time += 1
-                    queue.append(i)
-                    continue
-                start = time
-                run_time = min(self.time_quantum, remaining[i])
-                gantt.append((start, start + run_time, i))
-                remaining[i] -= run_time
-                if remaining[i] > 0:
-                    queue.append(i)
-                else:
-                    WT[i] = time - AT[i] - (CBT[i] - remaining[i])
-                    TT[i] = WT[i] + CBT[i]
-                    RT[i] = WT[i]
-                time += run_time + self.context_switch_time
+    def spn(self):
+        n = len(self.processes)
+        CBT = [p[0] for p in self.processes]
+        AT = [p[1] for p in self.processes]
+        WT = [0] * n
+        TT = [0] * n
+        RT = [0] * n
+        gantt = []
+        
+        completed = [False] * n
+        time = min(AT)
+        
+        while True:
+            if all(completed):
+                break
+                
+            available = [(i, CBT[i]) for i in range(n) 
+                        if not completed[i] and AT[i] <= time]
+            
+            if not available:
+                time = min(AT[i] for i in range(n) if not completed[i])
+                continue
+            
+            # Choose process with shortest burst time
+            current = min(available, key=lambda x: x[1])[0]
+            
+            # Add context switch if not first process
+            if gantt and self.context_switch_time > 0:
+                gantt.append((time, time + self.context_switch_time, -1))
+                time += self.context_switch_time
+            
+            gantt.append((time, time + CBT[current], current))
+            WT[current] = time - AT[current]
+            RT[current] = WT[current]
+            TT[current] = WT[current] + CBT[current]
+            time += CBT[current]
+            completed[current] = True
+            
+        return gantt, WT, TT, RT
 
-        elif algorithm == "SRTF":
-            time = 0
-            remaining = CBT[:]
-            completed = 0
-            while completed < n:
-                candidates = [(i, remaining[i]) for i in range(n) if remaining[i] > 0 and AT[i] <= time]
-                if not candidates:
-                    time += 1
-                    continue
-                i, _ = min(candidates, key=lambda x: x[1])
-                start = time
-                gantt.append((start, start + 1, i))
-                remaining[i] -= 1
-                if remaining[i] == 0:
-                    completed += 1
-                    WT[i] = time + 1 - AT[i] - CBT[i]
-                    TT[i] = WT[i] + CBT[i]
-                    RT[i] = WT[i]
-                time += 1
+    def hrrn(self):
+        n = len(self.processes)
+        CBT = [p[0] for p in self.processes]
+        AT = [p[1] for p in self.processes]
+        WT = [0] * n
+        TT = [0] * n
+        RT = [0] * n
+        gantt = []
+        
+        completed = [False] * n
+        time = min(AT)
+        
+        while True:
+            if all(completed):
+                break
+                
+            # Calculate response ratio for available processes
+            available = []
+            for i in range(n):
+                if not completed[i] and AT[i] <= time:
+                    wait_time = time - AT[i]
+                    response_ratio = (wait_time + CBT[i]) / CBT[i]
+                    available.append((i, response_ratio))
+            
+            if not available:
+                time = min(AT[i] for i in range(n) if not completed[i])
+                continue
+            
+            # Choose process with highest response ratio
+            current = max(available, key=lambda x: x[1])[0]
+            
+            # Add context switch if not first process
+            if gantt and self.context_switch_time > 0:
+                gantt.append((time, time + self.context_switch_time, -1))
+                time += self.context_switch_time
+            
+            gantt.append((time, time + CBT[current], current))
+            WT[current] = time - AT[current]
+            RT[current] = WT[current]
+            TT[current] = WT[current] + CBT[current]
+            time += CBT[current]
+            completed[current] = True
+            
+        return gantt, WT, TT, RT
 
+    def rr(self):
+        n = len(self.processes)
+        CBT = [p[0] for p in self.processes]
+        AT = [p[1] for p in self.processes]
+        WT = [0] * n
+        TT = [0] * n
+        RT = [-1] * n  # Initialize RT to -1
+        gantt = []
+        
+        remaining = CBT.copy()
+        time = min(AT)
+        ready_queue = []
+        
+        while True:
+            # Add newly arrived processes to ready queue
+            for i in range(n):
+                if AT[i] <= time and remaining[i] > 0 and i not in ready_queue:
+                    ready_queue.append(i)
+            
+            if not ready_queue:
+                if all(remaining[i] == 0 for i in range(n)):
+                    break
+                time = min(AT[i] for i in range(n) if remaining[i] > 0)
+                continue
+            
+            current = ready_queue.pop(0)
+            
+            # Add context switch if not first process
+            if gantt and self.context_switch_time > 0:
+                gantt.append((time, time + self.context_switch_time, -1))
+                time += self.context_switch_time
+            
+            # Record first response time
+            if RT[current] == -1:
+                RT[current] = time - AT[current]
+            
+            # Execute for quantum or remaining time
+            execute_time = min(self.time_quantum, remaining[current])
+            gantt.append((time, time + execute_time, current))
+            
+            remaining[current] -= execute_time
+            time += execute_time
+            
+            # If process not finished, add back to queue
+            if remaining[current] > 0:
+                ready_queue.append(current)
+            else:
+                TT[current] = time - AT[current]
+                WT[current] = TT[current] - CBT[current]
+        
+        return gantt, WT, TT, RT
+
+    def srtf(self):
+        n = len(self.processes)
+        CBT = [p[0] for p in self.processes]
+        AT = [p[1] for p in self.processes]
+        remaining = CBT.copy()
+        WT = [0] * n
+        TT = [0] * n
+        RT = [-1] * n
+        gantt = []
+        
+        time = min(AT)
+        completed = 0
+        current_process = None
+        last_process = None
+        
+        while completed < n:
+            # Find process with minimum remaining time
+            min_remaining = float('inf')
+            current_process = None
+            
+            for i in range(n):
+                if AT[i] <= time and remaining[i] > 0:
+                    if remaining[i] < min_remaining:
+                        min_remaining = remaining[i]
+                        current_process = i
+            
+            if current_process is None:
+                time = min(AT[i] for i in range(n) if remaining[i] > 0)
+                continue
+            
+            # Add context switch if switching processes
+            if last_process is not None and last_process != current_process and self.context_switch_time > 0:
+                gantt.append((time, time + self.context_switch_time, -1))
+                time += self.context_switch_time
+            
+            # Record first response time
+            if RT[current_process] == -1:
+                RT[current_process] = time - AT[current_process]
+            
+            gantt.append((time, time + 1, current_process))
+            remaining[current_process] -= 1
+            
+            if remaining[current_process] == 0:
+                completed += 1
+                TT[current_process] = time + 1 - AT[current_process]
+                WT[current_process] = TT[current_process] - CBT[current_process]
+            
+            last_process = current_process
+            time += 1
+        
         return gantt, WT, TT, RT
 
 
