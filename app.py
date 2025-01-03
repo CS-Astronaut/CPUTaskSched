@@ -1,13 +1,12 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import numpy as np
 
-# CPU Scheduling Simulator
+
 class CPUScheduler:
     def __init__(self):
-        self.processes = []  # Input: [ [CBT1, AT1] , [CBT2, AT2] , ... ]
+        self.processes = []  # Input: [[CBT1, AT1], [CBT2, AT2], ...]
         self.context_switch_time = 0
         self.time_quantum = 5
 
@@ -27,7 +26,6 @@ class CPUScheduler:
         return self.simulate("SRTF")
 
     def simulate(self, algorithm):
-        # Simulate scheduling and return Gantt chart data + WT, TT, RT for processes
         n = len(self.processes)
         CBT = [p[0] for p in self.processes]
         AT = [p[1] for p in self.processes]
@@ -37,7 +35,6 @@ class CPUScheduler:
         gantt = []
 
         if algorithm == "FCFS":
-            # First-Come, First-Served logic
             time = 0
             for i, (cbt, at) in enumerate(sorted(self.processes, key=lambda x: x[1])):
                 start = max(time, at)
@@ -48,7 +45,6 @@ class CPUScheduler:
                 time = start + cbt + self.context_switch_time
 
         elif algorithm == "SPN":
-            # Shortest Process Next logic
             time = 0
             completed = [False] * n
             for _ in range(n):
@@ -66,7 +62,6 @@ class CPUScheduler:
                 completed[i] = True
 
         elif algorithm == "HRRN":
-            # Highest Response Ratio Next logic
             time = 0
             completed = [False] * n
             for _ in range(n):
@@ -84,7 +79,6 @@ class CPUScheduler:
                 completed[i] = True
 
         elif algorithm == "RR":
-            # Round Robin logic
             time = 0
             queue = [i for i in range(n)]
             remaining = CBT[:]
@@ -107,7 +101,6 @@ class CPUScheduler:
                 time += run_time + self.context_switch_time
 
         elif algorithm == "SRTF":
-            # Shortest Remaining Time First logic
             time = 0
             remaining = CBT[:]
             completed = 0
@@ -129,7 +122,7 @@ class CPUScheduler:
 
         return gantt, WT, TT, RT
 
-# GUI Application
+
 class SchedulerApp:
     def __init__(self, root):
         self.scheduler = CPUScheduler()
@@ -138,10 +131,16 @@ class SchedulerApp:
         self.create_widgets()
 
     def create_widgets(self):
-        # Input Section
+        # Configure the root grid
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_columnconfigure(1, weight=2)
+        self.root.grid_rowconfigure(0, weight=1)
+
+        # Input section
         input_frame = tk.Frame(self.root)
-        input_frame.grid(row=0, column=0, padx=10, pady=10)
-        
+        input_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        input_frame.grid_rowconfigure(6, weight=1)  # Allow the "Run" button space to expand
+
         tk.Label(input_frame, text="Processes (CBT, AT) as List:").grid(row=0, column=0, sticky="w")
         self.process_input = tk.Text(input_frame, width=30, height=5)
         self.process_input.grid(row=1, column=0, pady=5)
@@ -157,61 +156,90 @@ class SchedulerApp:
         self.tq_input.insert(0, "5")
 
         self.run_button = tk.Button(input_frame, text="Run", command=self.run_simulation)
-        self.run_button.grid(row=6, column=0, pady=10)
+        self.run_button.grid(row=6, column=0, pady=10, sticky="s")
 
-        # Output Section
-        self.output_frame = tk.Frame(self.root)
-        self.output_frame.grid(row=0, column=1, padx=10, pady=10)
+        # Scrollable output section
+        scrollable_frame = tk.Frame(self.root)
+        scrollable_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+
+        canvas = tk.Canvas(scrollable_frame)
+        canvas.grid(row=0, column=0, sticky="nsew")
+
+        scrollbar = tk.Scrollbar(scrollable_frame, orient="vertical", command=canvas.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+        self.output_frame = tk.Frame(canvas)
+        canvas.create_window((0, 0), window=self.output_frame, anchor="nw")
+        self.output_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        scrollable_frame.grid_rowconfigure(0, weight=1)
+        scrollable_frame.grid_columnconfigure(0, weight=1)
 
     def run_simulation(self):
-        # Parse inputs
-        process_text = self.process_input.get("1.0", "end").strip()
         try:
-            # Convert the string input into the required format
-            self.scheduler.processes = eval(process_text)
-            # Check if the input is a list of pairs [CBT, AT]
+            self.scheduler.processes = eval(self.process_input.get("1.0", "end").strip())
             if not all(isinstance(p, list) and len(p) == 2 for p in self.scheduler.processes):
                 raise ValueError("Input must be a list of [CBT, AT] pairs.")
         except Exception as e:
-            tk.messagebox.showerror("Input Error", f"Invalid input format. Error: {e}")
+            messagebox.showerror("Input Error", f"Invalid input format. Error: {e}")
             return
 
         self.scheduler.context_switch_time = int(self.cs_input.get())
         self.scheduler.time_quantum = int(self.tq_input.get())
 
-        # Clear output frame
         for widget in self.output_frame.winfo_children():
             widget.destroy()
 
-        # Run simulations and display results
         algorithms = ["FCFS", "SPN", "HRRN", "RR", "SRTF"]
-        results = {}
+        averages = []
+        
         for i, algo in enumerate(algorithms):
             gantt, WT, TT, RT = getattr(self.scheduler, algo.lower())()
-            results[algo] = (gantt, WT, TT, RT)
 
-            # Gantt Chart
-            fig, ax = plt.subplots(figsize=(6, 1))
+            avg_wt = sum(WT) / len(WT)
+            avg_tt = sum(TT) / len(TT)
+            avg_rt = sum(RT) / len(RT)
+            averages.append((algo, avg_wt, avg_tt, avg_rt))
+
+            fig, ax = plt.subplots(figsize=(8, 2))
             for (start, end, process) in gantt:
                 ax.plot([start, end], [process, process], color="blue", lw=2)
+
             ax.set_yticks(range(len(self.scheduler.processes)))
             ax.set_yticklabels([f"P{i+1}" for i in range(len(self.scheduler.processes))])
-            ax.set_xlabel("Time")
-            ax.set_title(algo)
+            ax.set_xlabel("Time", fontsize=10)
+            ax.set_title(algo, fontsize=12)
+            ax.grid(True, linestyle="--", alpha=0.5)
+            plt.tight_layout()
 
             canvas = FigureCanvasTkAgg(fig, self.output_frame)
-            canvas.get_tk_widget().grid(row=i, column=0, padx=10, pady=10)
+            canvas.get_tk_widget().grid(row=i, column=0, padx=10, pady=10, sticky="nsew")
 
-            # Table
             table_frame = tk.Frame(self.output_frame)
-            table_frame.grid(row=i, column=1, padx=10, pady=10)
+            table_frame.grid(row=i, column=1, padx=10, pady=10, sticky="nsew")
             ttk.Label(table_frame, text=f"{algo} WT, TT, RT").grid(row=0, column=0)
             for j, (wt, tt, rt) in enumerate(zip(WT, TT, RT)):
-                ttk.Label(table_frame, text=f"P{j+1}: WT={wt}, TT={tt}, RT={rt}").grid(row=j+1, column=0)
+                ttk.Label(table_frame, text=f"P{j+1}: WT={wt}, TT={tt}, RT={rt}").grid(row=j + 1, column=0)
 
-# Run the Application
+        # Add summary table
+        summary_frame = tk.Frame(self.output_frame)
+        summary_frame.grid(row=len(algorithms), column=0, columnspan=2, pady=10)
+
+        tk.Label(summary_frame, text="Average WT, TT, RT", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=4)
+        tk.Label(summary_frame, text="Algorithm").grid(row=1, column=0, padx=5)
+        tk.Label(summary_frame, text="Avg WT").grid(row=1, column=1, padx=5)
+        tk.Label(summary_frame, text="Avg TT").grid(row=1, column=2, padx=5)
+        tk.Label(summary_frame, text="Avg RT").grid(row=1, column=3, padx=5)
+
+        for i, (algo, avg_wt, avg_tt, avg_rt) in enumerate(averages):
+            tk.Label(summary_frame, text=algo).grid(row=i+2, column=0)
+            tk.Label(summary_frame, text=f"{avg_wt:.2f}").grid(row=i+2, column=1)
+            tk.Label(summary_frame, text=f"{avg_tt:.2f}").grid(row=i+2, column=2)
+            tk.Label(summary_frame, text=f"{avg_rt:.2f}").grid(row=i+2, column=3)
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = SchedulerApp(root)
     root.mainloop()
-
