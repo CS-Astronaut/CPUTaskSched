@@ -13,37 +13,45 @@ class CPUScheduler:
 
     def fcfs(self):
         n = len(self.processes)
+
         CBT = [p[0] for p in self.processes]
         AT = [p[1] for p in self.processes]
+
         WT = [0] * n
         TT = [0] * n
         RT = [0] * n
+
         gantt = []
 
         # Sort processes by arrival time
         sorted_processes = sorted(enumerate(self.processes), key=lambda x: x[1][1])
+
         time = sorted_processes[0][1][1]  # Start with first arrival
 
-        first_process = True  # Flag to indicate the first process
+        last_process = False  
 
         for i, (cbt, at) in sorted_processes:
             if time < at:
                 time = at
+            WT[i] = time - at
+            
 
             gantt.append((at, at, i, "arrival"))  # Add process arrival
 
-            # Add context switch only if not the first process
-            if not first_process and self.context_switch_time > 0:
-                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
-                time += self.context_switch_time
 
             gantt.append((time, time + cbt, i, "execution"))
-            WT[i] = time - at
-            RT[i] = WT[i]
-            TT[i] = WT[i] + cbt
             time += cbt
 
-            first_process = False  # First process is now executed
+            if i == len(sorted_processes) - 1:
+                last_process = True  # Last process is now being executed
+
+            # Add context switch only if not the first process
+            if not last_process and self.context_switch_time > 0:
+                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
+                time += self.context_switch_time
+            
+            RT[i] = WT[i]
+            TT[i] = WT[i] + cbt
 
         return gantt, WT, TT, RT
 
@@ -58,11 +66,9 @@ class CPUScheduler:
 
         completed = [False] * n
         time = min(AT)
-        first_process = True  # Flag to indicate the first process
 
         while True:
-            if all(completed):
-                break
+
 
             available = [(i, CBT[i]) for i in range(n) if not completed[i] and AT[i] <= time]
 
@@ -75,21 +81,28 @@ class CPUScheduler:
 
             gantt.append((AT[current], AT[current], current, "arrival"))  # Add process arrival
 
-            # Add context switch only if not the first process
-            if not first_process and self.context_switch_time > 0:
-                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
-                time += self.context_switch_time
+
+
 
             gantt.append((time, time + CBT[current], current, "execution"))
+
             WT[current] = time - AT[current]
             RT[current] = WT[current]
             TT[current] = WT[current] + CBT[current]
             time += CBT[current]
             completed[current] = True
 
-            first_process = False  # First process is now executed
+            if all(completed):
+                break
+
+            if   self.context_switch_time > 0:
+                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
+                time += self.context_switch_time
 
         return gantt, WT, TT, RT
+
+
+        
 
     def hrrn(self):
         n = len(self.processes)
@@ -102,11 +115,9 @@ class CPUScheduler:
 
         completed = [False] * n
         time = min(AT)
-        first_process = True
 
         while True:
-            if all(completed):
-                break
+
 
             available = []
             for i in range(n):
@@ -123,9 +134,6 @@ class CPUScheduler:
 
             gantt.append((AT[current], AT[current], current, "arrival"))
 
-            if not first_process and self.context_switch_time > 0:
-                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
-                time += self.context_switch_time
 
             gantt.append((time, time + CBT[current], current, "execution"))
             WT[current] = time - AT[current]
@@ -134,7 +142,12 @@ class CPUScheduler:
             time += CBT[current]
             completed[current] = True
 
-            first_process = False
+            if all(completed):
+                break
+
+            if self.context_switch_time > 0:
+                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
+                time += self.context_switch_time
 
         return gantt, WT, TT, RT
 
@@ -169,7 +182,7 @@ class CPUScheduler:
             if remaining[current] == CBT[current]:
                 gantt.append((AT[current], AT[current], current, "arrival"))
 
-            if not first_process and self.context_switch_time > 0:
+            if self.context_switch_time > 0:
                 gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
                 time += self.context_switch_time
 
@@ -191,6 +204,12 @@ class CPUScheduler:
             first_process = False
 
         return gantt, WT, TT, RT
+
+
+
+
+
+
 
     def srtf(self):
         n = len(self.processes)
