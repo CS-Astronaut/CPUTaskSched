@@ -434,6 +434,9 @@ class SchedulerApp:
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = SchedulerApp(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        app = SchedulerApp(root)
+        root.mainloop()
+    except KeyboardInterrupt:
+        print("Exited")
