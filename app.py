@@ -3,7 +3,6 @@ from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-#Fixed The CPUScheduler Class For SRTF Algorithm in Context Switch Time Calculation
 
 class CPUScheduler:
     def __init__(self):
@@ -174,7 +173,6 @@ class CPUScheduler:
             for i in range(n):
                 if AT[i] <= time and remaining[i] > 0 and i not in ready_queue:
                     ready_queue.append(i)
-                    print(f"process {i} added to ready queue : {ready_queue}")
 
             if not ready_queue: #if ready queue is empty break
                 if all(remaining[i] == 0 for i in range(n)):
@@ -192,7 +190,6 @@ class CPUScheduler:
             else:
                 current = ready_queue.pop(0)
 
-            print(f"current process ({current}) popped => {ready_queue}")
 
 
             if remaining[current] == CBT[current]:
@@ -211,8 +208,6 @@ class CPUScheduler:
                     i = AT.index(t)
                     if remaining[i] > 0 and i not in ready_queue and i != current:
                         ready_queue.append(i)
-                        print(f"process {i} added to ready queue : {ready_queue}")
-
 
 
             remaining[current] -= execute_time
@@ -224,12 +219,10 @@ class CPUScheduler:
                     i = AT.index(t)
                     if remaining[i] > 0 and i not in ready_queue and i != current:
                         ready_queue.append(i)
-                        print(f"process {i} added to ready queue : {ready_queue}")
 
 
             if remaining[current] > 0:
                 ready_queue.append(current)
-                print(f"process ({current}) quantum finished and has more => {ready_queue}")
                 
             else:
                 TT[current] = time - AT[current]
@@ -238,8 +231,6 @@ class CPUScheduler:
             if self.context_switch_time > 0 and ready_queue:
                 gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
                 time += self.context_switch_time
-
-
 
         return gantt, WT, TT, RT
 
