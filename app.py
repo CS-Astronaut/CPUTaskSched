@@ -151,7 +151,11 @@ class CPUScheduler:
 
         return gantt, WT, TT, RT
 
+
+
+
     def rr(self):
+
         n = len(self.processes)
         CBT = [p[0] for p in self.processes]
         AT = [p[1] for p in self.processes]
@@ -163,28 +167,37 @@ class CPUScheduler:
         remaining = CBT.copy()
         time = min(AT)
         ready_queue = []
-        first_process = True
+        j = 0
 
         while True:
             # Add newly arrived processes to ready queue
             for i in range(n):
                 if AT[i] <= time and remaining[i] > 0 and i not in ready_queue:
                     ready_queue.append(i)
+                    print(f"process {i} added to ready queue : {ready_queue}")
 
-            if not ready_queue:
+            if not ready_queue: #if ready queue is empty break
                 if all(remaining[i] == 0 for i in range(n)):
                     break
                 time = min(AT[i] for i in range(n) if remaining[i] > 0)
                 continue
+            
+            tmp = []
+            for i in range(len(ready_queue)-1):
+                if ready_queue[i] > ready_queue[-1]:
+                    tmp.append(i)
+            
+            if tmp:
+                current = ready_queue.pop(tmp[-1])
+            else:
+                current = ready_queue.pop(0)
 
-            current = ready_queue.pop(0)
+            print(f"current process ({current}) popped => {ready_queue}")
+
 
             if remaining[current] == CBT[current]:
                 gantt.append((AT[current], AT[current], current, "arrival"))
 
-            if self.context_switch_time > 0:
-                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
-                time += self.context_switch_time
 
             if RT[current] == -1:
                 RT[current] = time - AT[current]
@@ -192,22 +205,43 @@ class CPUScheduler:
             execute_time = min(self.time_quantum, remaining[current])
             gantt.append((time, time + execute_time, current, "execution"))
 
+            # if in execute time any process arrived append them 
+            for t in range (time, time+execute_time+1,1):
+                if t in AT :
+                    i = AT.index(t)
+                    if remaining[i] > 0 and i not in ready_queue and i != current:
+                        ready_queue.append(i)
+                        print(f"process {i} added to ready queue : {ready_queue}")
+
+
+
             remaining[current] -= execute_time
             time += execute_time
 
+            #if there will be any arrival on context switch we have to append it now before appending current remaining
+            for t in range (time, time+self.context_switch_time+1,1):
+                if t in AT :
+                    i = AT.index(t)
+                    if remaining[i] > 0 and i not in ready_queue and i != current:
+                        ready_queue.append(i)
+                        print(f"process {i} added to ready queue : {ready_queue}")
+
+
             if remaining[current] > 0:
                 ready_queue.append(current)
+                print(f"process ({current}) quantum finished and has more => {ready_queue}")
+                
             else:
                 TT[current] = time - AT[current]
                 WT[current] = TT[current] - CBT[current]
 
-            first_process = False
+            if self.context_switch_time > 0 and ready_queue:
+                gantt.append((time, time + self.context_switch_time, -1, "context_switch"))
+                time += self.context_switch_time
+
+
 
         return gantt, WT, TT, RT
-
-
-
-
 
 
 
@@ -305,15 +339,19 @@ class SchedulerApp:
         input_frame = tk.Frame(self.root)
         input_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         input_frame.grid_rowconfigure(6, weight=1)
+    
 
         tk.Label(input_frame, text="Processes (CBT, AT) as List:").grid(row=0, column=0, sticky="w")
         self.process_input = tk.Text(input_frame, width=30, height=5)
         self.process_input.grid(row=1, column=0, pady=5)
+#        self.process_input.insert("1.0","[[10, 0], [8, 2], [3, 3], [7,4], [12,5]]")
+        self.process_input.insert("1.0","[[6, 1], [10, 7], [2, 9], [3, 25]]")
+        
 
         tk.Label(input_frame, text="Context Switch Time:").grid(row=2, column=0, sticky="w")
         self.cs_input = tk.Entry(input_frame)
         self.cs_input.grid(row=3, column=0, pady=5)
-        self.cs_input.insert(0, "0")
+        self.cs_input.insert(0, "2")
 
         tk.Label(input_frame, text="Time Quantum:").grid(row=4, column=0, sticky="w")
         self.tq_input = tk.Entry(input_frame)
